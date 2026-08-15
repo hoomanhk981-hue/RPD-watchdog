@@ -1,1 +1,52 @@
+name: RDP Watchdog
 
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+
+  workflow_dispatch:
+
+concurrency:
+  group: rdp-watchdog
+  cancel-in-progress: true
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check RDP Workflow
+        env:
+          GH_TOKEN: ${{ secrets.WATCHDOG_TOKEN }}
+          REPO: hoomanhk981-hue/RPDboy
+          WORKFLOW: windows-rdp.yml
+        run: |
+          echo "Checking RDP Workflow..."
+
+          ACTIVE_RUNS=$(gh run list \
+            --repo "$REPO" \
+            --workflow "$WORKFLOW" \
+            --status queued \
+            --status in_progress \
+            --limit 10 \
+            --json databaseId \
+            --jq 'length')
+
+          echo "Active runs: $ACTIVE_RUNS"
+
+          if [ "$ACTIVE_RUNS" -eq 0 ]; then
+            echo "No active RDP workflow found."
+            echo "Starting Windows RDP workflow..."
+
+            gh workflow run "$WORKFLOW" \
+              --repo "$REPO" \
+              --ref main
+
+            echo "RDP workflow started successfully."
+          else
+            echo "RDP workflow is already running."
+            echo "Nothing to do."
+          fi
